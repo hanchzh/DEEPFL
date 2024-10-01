@@ -25,7 +25,119 @@ class Fed:
     def prepare(self):
         self.load_data_fl()
         self.build_model()
-    def load_data_sfl(self):
+
+    def load_data_sfl_NOAA_NASA(self):
+        # 加载数据集并划分给用户
+        if self.args.dataset == 'NOAA_NASA':
+            # 导入必要的库
+            import xarray as xr
+            import numpy as np
+            from torch.utils.data import Dataset, DataLoader
+
+            # 假设已经下载并解压了 NOAA 和 NASA 的数据集到指定路径
+            # 加载 NOAA 数据集
+            dataset_noaa = xr.open_dataset('./data/NOAA/noaa_data.nc')
+            # 加载 NASA Ocean Color 数据集
+            dataset_nasa = xr.open_dataset('./data/NASA/nasa_ocean_color_data.nc')
+
+            # 对数据集进行预处理，例如选择特定的变量、时间范围、空间范围等
+            # 假设我们感兴趣的变量是 'sea_surface_temperature' 和 'chlorophyll_concentration'
+            variables = ['sea_surface_temperature', 'chlorophyll_concentration']
+            dataset_noaa = dataset_noaa[variables]
+            dataset_nasa = dataset_nasa[variables]
+
+            # 合并两个数据集
+            dataset_combined = xr.concat([dataset_noaa, dataset_nasa], dim='time')
+
+            # 划分训练集和测试集
+            train_time_range = slice('2000-01-01', '2015-12-31')
+            test_time_range = slice('2016-01-01', '2020-12-31')
+            dataset_train = dataset_combined.sel(time=train_time_range)
+            dataset_test = dataset_combined.sel(time=test_time_range)
+
+            # 数据标准化（以训练集的均值和标准差为基准）
+            mean = dataset_train.mean(dim='time')
+            std = dataset_train.std(dim='time')
+            dataset_train = (dataset_train - mean) / std
+            dataset_test = (dataset_test - mean) / std
+
+            # 定义自定义 Dataset 类
+            class SatelliteDataset(Dataset):
+                def __init__(self, data):
+                    self.data = data
+                    self.times = data['time'].values
+
+                def __len__(self):
+                    return len(self.times)
+
+                def __getitem__(self, idx):
+                    # 获取指定时间点的数据
+                    time = self.times[idx]
+                    x = self.data.sel(time=time)
+                    # 将数据转换为 numpy 数组
+                    x_array = x.to_array().values
+                    # 假设我们使用 'sea_surface_temperature' 作为特征，'chlorophyll_concentration' 作为标签
+                    features = x_array[0]  # sea_surface_temperature
+                    label = x_array[1]  # chlorophyll_concentration
+                    return features, label
+
+            # 创建训练集和测试集的 Dataset 对象
+            dataset_train = SatelliteDataset(dataset_train)
+            dataset_test = SatelliteDataset(dataset_test)
+
+            # 将数据划分给用户
+            if self.args.iid:
+                # 如果是 IID 的数据划分
+                dict_users = satellite_iid(dataset_train, self.args.num_users)
+            else:
+                # 如果是 Non-IID 的数据划分
+                dict_users, dict_users_test = satellite_noniid_train_test(
+                    dataset_train, dataset_test, self.args.num_users)
+        else:
+            exit('Error: unrecognized dataset')
+
+        # 获取数据的形状
+        img_size = dataset_train[0][0].shape
+
+        # 保存数据和划分结果
+        self.dataset_train = dataset_train
+        self.dataset_test = dataset_test
+        self.dict_users = dict_users
+        self.dict_users_test = dict_users_test
+        self.img_size = img_size
+        return dataset_train, dataset_test, dict_users, dict_users_test
+
+    def satellite_iid(dataset, num_users):
+        # 将数据集均匀地分配给每个用户
+        num_items = int(len(dataset) / num_users)
+        all_idxs = np.arange(len(dataset))
+        np.random.shuffle(all_idxs)
+        dict_users = {}
+        for i in range(num_users):
+            dict_users[i] = set(all_idxs[i * num_items:(i + 1) * num_items])
+        return dict_users
+
+    def satellite_noniid_train_test(dataset_train, dataset_test, num_users):
+        # 按照标签的值对数据进行排序，以实现 Non-IID 划分
+        train_labels = np.array([dataset_train[i][1] for i in range(len(dataset_train))])
+        test_labels = np.array([dataset_test[i][1] for i in range(len(dataset_test))])
+
+        train_idxs = np.argsort(train_labels)
+        test_idxs = np.argsort(test_labels)
+
+        dict_users = {}
+        dict_users_test = {}
+
+        num_items_train = int(len(train_idxs) / num_users)
+        num_items_test = int(len(test_idxs) / num_users)
+
+        for i in range(num_users):
+            dict_users[i] = set(train_idxs[i * num_items_train:(i + 1) * num_items_train])
+            dict_users_test[i] = set(test_idxs[i * num_items_test:(i + 1) * num_items_test])
+
+        return dict_users, dict_users_test
+
+    def load_data_sfl_mnist(self):
         # load dataset and split users
         if self.args.dataset == 'mnist':
             trans_mnist = transforms.Compose(
