@@ -21,7 +21,7 @@ if __name__ == "__main__":
     dataset_trains = []
     dataset_tests = []
     for i in range(args.num_users):
-        dataset_train, dataset_test, dict_users = fed.load_data_fl(i*0.55)
+        dataset_train, dataset_test, dict_users = fed.load_data_fl_NOAA_NASA(i*0.55)
         dataset_trains.append(dataset_train)
         dataset_tests.append(dataset_test)
 
