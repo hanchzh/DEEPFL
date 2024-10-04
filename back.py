@@ -7,7 +7,7 @@ from models.Fed import FedAvg
 from models.Nets import MLP, CNNMnist, CNNCifar
 from models.Update import LocalUpdate
 from utils.options import args_parser
-from utils.sampling import mnist_iid, mnist_noniid, cifar_iid
+from utils.sampling import MLPAIS，mnist_iid, mnist_noniid, cifar_iid
 import torch
 from torchvision import datasets, transforms
 import numpy as np
