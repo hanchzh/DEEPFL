@@ -7,12 +7,12 @@ pytorch>=0.4
 
 
 Federated learning with MLP and CNN is produced by:
-> python [main_fed.py](back.py)
+> python [main_cfed.py](back.py)
 
 See the arguments in [options.py](utils/options.py). 
 
 For example:
-> python main_fed.py --dataset mnist --iid --num_channels 1 --model cnn --epochs 50 --gpu 0  
+> python main_fed.py --dataset NOAA --iid --num_channels 1 --model cnn --epochs 50 --gpu 0  
 
 `--all_clients` for averaging over all client models
 
