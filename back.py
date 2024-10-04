@@ -51,25 +51,73 @@ if __name__ == '__main__':
             dict_users = cifar_iid(dataset_train, args.num_users)
         else:
             exit('Error: only consider IID setting in CIFAR10')
+     elif args.dataset == 'cifar':
+        # CIFAR 数据集
+        trans_cifar = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize(
+                (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        dataset_train = datasets.CIFAR10(
+            './data/cifar', train=True, download=True, transform=trans_cifar)
+        dataset_test = datasets.CIFAR10(
+            './data/cifar', train=False, download=True, transform=trans_cifar)
+        if args.iid:
+            dict_users = cifar_iid(dataset_train, args.num_users)
+        else:
+            exit('Error: only consider IID setting in CIFAR10')
+
+    elif args.dataset == 'noaa_ais':
+        # 加载 NOAA AIS 数据集
+        dataset_train, dataset_test = load_noaa_ais_data()
+        if args.iid:
+            dict_users = split_data_iid(dataset_train, args.num_users)
+        else:
+            dict_users = split_data_noniid(dataset_train, args.num_users)
+
+    elif args.dataset == 'nasa_sar':
+        # 加载 NASA SAR 图像数据集
+        dataset_train, dataset_test = load_nasa_sar_data()
+        if args.iid:
+            dict_users = split_data_iid(dataset_train, args.num_users)
+        else:
+            dict_users = split_data_noniid(dataset_train, args.num_users)
     else:
         exit('Error: unrecognized dataset')
-    img_size = dataset_train[0][0].shape
     '''我们通过定义不同的数据划分方式将数据分为 iid 和 non-iid 两种，用来模拟测试 FedAvg 在不同场景下的性能。返回的是一个字典类型 dict_users，key值是用户 id，values是用户拥有的图片id。(具体实现方式可以自行研究代码)
     '''
+    # 获取输入数据的形状
+    if args.dataset in ['mnist', 'cifar', 'nasa_sar']:
+        img_size = dataset_train[0][0].shape
+    elif args.dataset == 'noaa_ais':
+        # 对于 AIS 数据，输入是特征向量
+        input_size = len(dataset_train[0][0])  # 假设每个样本是 (features, label)
+    else:
+        exit('Error: unrecognized dataset')
 
     # build model
-    if args.model == 'cnn' and args.dataset == 'cifar':
+if args.model == 'cnn':
+    if args.dataset == 'cifar':
         net_glob = CNNCifar(args=args).to(args.device)
-    elif args.model == 'cnn' and args.dataset == 'mnist':
+    elif args.dataset == 'mnist':
         net_glob = CNNMnist(args=args).to(args.device)
-    elif args.model == 'mlp':
+    elif args.dataset == 'nasa_sar':
+        net_glob = CNNSAR(args=args).to(args.device)
+    else:
+        exit('Error: CNN model is not applicable for this dataset')
+elif args.model == 'mlp':
+    if args.dataset in ['mnist', 'cifar', 'nasa_sar']:
         len_in = 1
         for x in img_size:
             len_in *= x
         net_glob = MLP(dim_in=len_in, dim_hidden=200,
                        dim_out=args.num_classes).to(args.device)
+    elif args.dataset == 'noaa_ais':
+        net_glob = MLPAIS(dim_in=input_size, dim_hidden=200,
+                          dim_out=args.num_classes).to(args.device)
     else:
-        exit('Error: unrecognized model')
+        exit('Error: MLP model is not applicable for this dataset')
+else:
+    exit('Error: unrecognized model')
+
     print(net_glob)
     net_glob.train()
 
@@ -135,3 +183,10 @@ if __name__ == '__main__':
     acc_test, loss_test = test_img(net_glob, dataset_test, args)
     print("Training accuracy: {:.2f}".format(acc_train))
     print("Testing accuracy: {:.2f}".format(acc_test))
+
+
+
+
+
+    
+
